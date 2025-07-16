@@ -2,7 +2,7 @@
 
 use ruff_python_codegen::Stylist;
 use ruff_python_index::Indexer;
-use ruff_source_file::UniversalNewlines;
+use ruff_source_file::{Line, UniversalNewlines};
 use ruff_text_size::TextSize;
 
 use crate::Locator;
@@ -40,11 +40,14 @@ pub(crate) fn check_physical_lines(
     let mut doc_lines_iter = doc_lines.iter().peekable();
     let comment_ranges = indexer.comment_ranges();
 
+    let mut prev_line: Option<Line> = None;
     for line in locator.contents().universal_newlines() {
+        let mut flagged_by_w505 = false;
         while doc_lines_iter
             .next_if(|doc_line_start| line.range().contains_inclusive(**doc_line_start))
             .is_some()
         {
+            flagged_by_w505 = true;
             if enforce_doc_line_too_long {
                 doc_line_too_long(&line, comment_ranges, settings, context);
             }
@@ -55,7 +58,14 @@ pub(crate) fn check_physical_lines(
         }
 
         if enforce_line_too_long {
-            line_too_long(&line, comment_ranges, settings, context);
+            line_too_long(
+                &line,
+                prev_line.as_ref(),
+                flagged_by_w505,
+                settings,
+                context,
+                indexer,
+            );
         }
 
         if enforce_bidirectional_unicode {
@@ -69,6 +79,7 @@ pub(crate) fn check_physical_lines(
         if context.is_rule_enabled(Rule::IndentedFormFeed) {
             indented_form_feed(&line, context);
         }
+        prev_line = Some(line);
     }
 
     if enforce_no_newline_at_end_of_file {
