@@ -1,6 +1,5 @@
 ---
 source: crates/ruff_linter/src/rules/pycodestyle/mod.rs
-snapshot_kind: text
 ---
 E501_3.py:11:89: E501 Line too long (89 > 88)
    |
@@ -8,3 +7,4 @@ E501_3.py:11:89: E501 Line too long (89 > 88)
 11 | "shape:" + "shape:" + "shape:" + "shape:" + "shape:" + "shape:" + "shape:" + "shape:aaaa"  # type: ignore
    |                                                                                         ^ E501
    |
+   = help: Break statement over multiple lines, or add # noqa flag

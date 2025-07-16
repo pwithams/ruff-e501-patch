@@ -264,6 +264,7 @@ RUF100_0.py:93:89: E501 Line too long (89 > 88)
 93 | "shape:  (6,)\nSeries: '' [duration[μs]]\n[\n\t0µs\n\t1µs\n\t2µs\n\t3µs\n\t4µs\n\t5µs\n]"  # noqa: F401
    |                                                                                         ^ E501
    |
+   = help: Break statement over multiple lines, or add # noqa flag
 
 RUF100_0.py:93:92: RUF100 [*] Unused `noqa` directive (unused: `F401`)
    |

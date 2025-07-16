@@ -9,6 +9,7 @@ E501_2.py:2:7: E501 Line too long (7 > 6)
 3 |     # a
 4 |     # a
   |
+  = help: Break statement over multiple lines, or add # noqa flag
 
 E501_2.py:3:7: E501 Line too long (7 > 6)
   |
@@ -19,6 +20,7 @@ E501_2.py:3:7: E501 Line too long (7 > 6)
 4 |     # a
 5 |     # aa
   |
+  = help: Break statement over multiple lines, or add # noqa flag
 
 E501_2.py:7:7: E501 Line too long (7 > 6)
   |
@@ -29,6 +31,7 @@ E501_2.py:7:7: E501 Line too long (7 > 6)
 8 |         # a
 9 |         # aa
   |
+  = help: Break statement over multiple lines, or add # noqa flag
 
 E501_2.py:10:7: E501 Line too long (7 > 6)
    |
@@ -39,6 +42,7 @@ E501_2.py:10:7: E501 Line too long (7 > 6)
 11 |
 12 | if True: # noqa: E501
    |
+   = help: Break statement over multiple lines, or add # noqa flag
 
 E501_2.py:16:7: E501 Line too long (7 > 6)
    |
@@ -47,3 +51,4 @@ E501_2.py:16:7: E501 Line too long (7 > 6)
 16 |     [1, 2]
    |          ^ E501
    |
+   = help: Break statement over multiple lines, or add # noqa flag
