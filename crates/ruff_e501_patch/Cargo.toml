@@ -1,5 +1,5 @@
 [package]
-name = "ruff"
+name = "ruff_e501_patch"
 version = "0.12.3"
 publish = true
 authors = { workspace = true }
@@ -10,7 +10,7 @@ documentation = { workspace = true }
 repository = { workspace = true }
 license = { workspace = true }
 readme = "../../README.md"
-default-run = "ruff"
+default-run = "ruff_e501_patch"
 
 [dependencies]
 ruff_cache = { workspace = true }

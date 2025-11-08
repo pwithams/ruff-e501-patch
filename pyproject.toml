@@ -3,7 +3,7 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "ruff"
+name = "ruff_e501_patch"
 version = "0.12.3"
 description = "An extremely fast Python linter and code formatter, written in Rust."
 authors = [{ name = "Astral Software Inc.", email = "hey@astral.sh" }]
@@ -45,8 +45,8 @@ Changelog = "https://github.com/astral-sh/ruff/blob/main/CHANGELOG.md"
 
 [tool.maturin]
 bindings = "bin"
-manifest-path = "crates/ruff/Cargo.toml"
-module-name = "ruff"
+manifest-path = "crates/ruff_e501_patch/Cargo.toml"
+module-name = "ruff_e501_patch"
 python-source = "python"
 strip = true
 exclude = [

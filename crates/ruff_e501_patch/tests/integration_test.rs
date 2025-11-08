@@ -20,11 +20,11 @@ use path_absolutize::path_dedot;
 use tempfile::TempDir;
 
 #[cfg(unix)]
-use ruff::args::Args;
+use ruff_e501_patch::args::Args;
 #[cfg(unix)]
-use ruff::run;
+use ruff_e501_patch::run;
 
-const BIN_NAME: &str = "ruff";
+const BIN_NAME: &str = "ruff_e501_patch";
 
 fn ruff_cmd() -> Command {
     Command::new(get_cargo_bin(BIN_NAME))

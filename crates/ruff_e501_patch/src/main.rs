@@ -4,8 +4,8 @@ use std::process::ExitCode;
 use clap::Parser;
 use colored::Colorize;
 
-use ruff::args::Args;
-use ruff::{ExitStatus, run};
+use ruff_e501_patch::args::Args;
+use ruff_e501_patch::{ExitStatus, run};
 
 #[cfg(target_os = "windows")]
 #[global_allocator]
