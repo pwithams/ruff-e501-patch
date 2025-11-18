@@ -339,6 +339,7 @@ fn break_line(
             added_comma_length + added_quote_length
         }
         LineTooLongType::StringSingleLine => added_comma_length,
+        LineTooLongType::StringAdditionStart => added_quote_length,
         _ => no_added_chars,
     };
     // fixed single line docstrings move leading """ to a new line
