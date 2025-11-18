@@ -150,6 +150,9 @@ enum LineTooLongType {
     StringMultiLineDocstring,
     StringParamAssignment,
     StringParamAssignmentTrailingComma,
+    StringAdditionStart,
+    StringDictionaryValue,
+    StringDictionaryValueTrailingComma,
     Ignored,
     Unsupported,
 }
@@ -161,6 +164,9 @@ impl LineTooLongType {
             LineTooLongType::StringSingleLine
                 | LineTooLongType::StringSingleLineWithTrailingComma
                 | LineTooLongType::StringSingleLineWithTrailingCommaParenthesis
+                | LineTooLongType::StringAdditionStart
+                | LineTooLongType::StringDictionaryValue
+                | LineTooLongType::StringDictionaryValueTrailingComma
         )
     }
     fn has_trailing_comma(&self) -> bool {
@@ -169,6 +175,7 @@ impl LineTooLongType {
             LineTooLongType::StringSingleLineWithTrailingComma
                 | LineTooLongType::StringSingleLineWithTrailingCommaParenthesis
                 | LineTooLongType::StringParamAssignmentTrailingComma
+                | LineTooLongType::StringDictionaryValueTrailingComma,
         )
     }
 
@@ -176,6 +183,14 @@ impl LineTooLongType {
         matches!(
             self,
             LineTooLongType::StringSingleLineWithTrailingCommaParenthesis
+        )
+    }
+
+    fn is_dictionary(&self) -> bool {
+        matches!(
+            self,
+            LineTooLongType::StringDictionaryValue
+                | LineTooLongType::StringDictionaryValueTrailingComma
         )
     }
 }
@@ -195,10 +210,13 @@ fn classify_line(line: &Line, flagged_by_w505: bool, prev_line: Option<&Line>) -
     let newline_comment_pattern: Regex = Regex::new(r"^[ ]*#").unwrap();
     // matches any comment, including inline comments
     let comment_pattern: Regex = Regex::new(r".*#").unwrap();
-    // matches parameter assignments
+    // matches parameter assignments, like param="some string",
     let parameter_assignment_pattern =
         Regex::new("^[ ]*[a-zA-Z0-9_]+=[bfr]{0,1}\".*\"[,]{0,1}$").unwrap();
+    // matches chained string addition lines, like + "some string"
+    let addition_start_pattern = Regex::new("^[ ]*\\+ \".*\"").unwrap();
     // attempt at matching multi-line strings
+    let dictionary_value_pattern = Regex::new("^[ ]*\".+\": [bfr]{0,1}\".*\"[,]{0,1}$").unwrap();
     let multiline_string_pattern: Regex =
         Regex::new("^[ ]*[\"]{0,3}[a-zA-Z0-9-:.,()?!%' ]*[\"]{0,3}$").unwrap();
     // match docstring variations
@@ -254,6 +272,14 @@ fn classify_line(line: &Line, flagged_by_w505: bool, prev_line: Option<&Line>) -
         } else {
             LineTooLongType::StringParamAssignment
         }
+    } else if addition_start_pattern.is_match(line) {
+        LineTooLongType::StringAdditionStart
+    } else if dictionary_value_pattern.is_match(line) {
+        if ends_with_comma_pattern.is_match(line) {
+            LineTooLongType::StringDictionaryValueTrailingComma
+        } else {
+            LineTooLongType::StringDictionaryValue
+        }
     } else {
         LineTooLongType::Unsupported
     }
@@ -296,6 +322,7 @@ fn break_line(
     let mut indent_end_found = false;
     let mut string_start = line.start();
     let mut string_start_found = false;
+    let mut dict_key_found = false;
     let mut last_fstring_safe_offset = last_text_break;
     let mut start_width = LineWidthBuilder::new(config.tab_size);
 
@@ -329,9 +356,16 @@ fn break_line(
             if c != ' ' {
                 indent_end_found = true;
             }
+            if c == ':' {
+                dict_key_found = true;
+            }
             if c == '"' {
                 string_start_found = true;
+                if line_type.is_dictionary() && !dict_key_found {
+                    string_start_found = false;
+                }
             }
+
             if line_has_fstring {
                 if c == '{' {
                     fstring_opened = true;
@@ -434,12 +468,12 @@ fn get_line_length_edits(
             let overflow_deletion = Edit::range_deletion(break_result.overflow_range);
             let mut edits = Vec::new();
             // delete unused f-string markers
+            let string_start = break_result.indent_to_string_range.end();
             if break_result.line_has_fstring {
                 if !break_result.unchanged_has_fvar {
-                    let indent_end = break_result.base_indent_range.end();
                     edits.push(Edit::range_deletion(TextRange::new(
-                        indent_end,
-                        (indent_end.to_u32() + 1).into(),
+                        string_start,
+                        (string_start.to_u32() + 1).into(),
                     )));
                 }
             }
@@ -447,7 +481,7 @@ fn get_line_length_edits(
             let mut fstring = "";
             let mut trailing_comma = "";
             let mut close_parenthesis = String::new();
-            if line_type.has_trailing_comma() {
+            if line_type.has_trailing_comma() || line_type.is_dictionary() {
                 trailing_comma = ",";
                 if !line_type.has_open_parenthesis() {
                     edits.push(Edit::insertion(
@@ -455,7 +489,7 @@ fn get_line_length_edits(
                             "(\n{}{}",
                             break_result.base_indent, &break_result.new_indent
                         ),
-                        break_result.base_indent_range.end(),
+                        string_start,
                     ));
                     additional_indent = &break_result.new_indent;
                     close_parenthesis = format!("\n{}),", break_result.base_indent);
@@ -596,10 +630,7 @@ fn get_line_length_edits(
             let delete_trailing_comma_edit =
                 Edit::deletion(string_end, break_result.overflow_range.end());
             let line_break_start_edit = Edit::insertion(
-                format!(
-                    "(\n{}{}",
-                    break_result.base_indent, break_result.new_indent
-                ),
+                format!("(\n{}{}", break_result.base_indent, break_result.new_indent),
                 string_start,
             );
             let line_break_end_edit =
