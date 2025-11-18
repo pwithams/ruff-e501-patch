@@ -218,7 +218,7 @@ fn classify_line(line: &Line, flagged_by_w505: bool, prev_line: Option<&Line>) -
     // attempt at matching multi-line strings
     let dictionary_value_pattern = Regex::new("^[ ]*\".+\": [bfr]{0,1}\".*\"[,]{0,1}$").unwrap();
     let multiline_string_pattern: Regex =
-        Regex::new("^[ ]*[\"]{0,3}[a-zA-Z0-9-:.,()?!%' ]*[\"]{0,3}$").unwrap();
+        Regex::new("^[ ]*[\"]{0,3}[a-zA-Z0-9\\-:._,()?!%' ]*[\"]{0,3}$").unwrap();
     // match docstring variations
     let docstring_start: Regex = Regex::new("^[ ]*[\"]{3}").unwrap();
     let docstring_end: Regex = Regex::new("[\"]{3}$").unwrap();
@@ -356,6 +356,12 @@ fn break_line(
         if start_width < line_limit {
             if c != ' ' {
                 indent_end_found = true;
+                if matches!(
+                    line_type,
+                    LineTooLongType::StringMultiLine | LineTooLongType::StringMultiLineDocstring,
+                ) {
+                    string_start_found = true;
+                }
             }
             if c == ':' {
                 dict_key_found = true;
