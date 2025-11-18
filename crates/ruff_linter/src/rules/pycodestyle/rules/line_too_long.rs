@@ -2,7 +2,7 @@ use regex::Regex;
 use ruff_macros::{ViolationMetadata, derive_message_formats};
 use ruff_python_index::Indexer;
 use ruff_source_file::Line;
-use ruff_text_size::{TextLen, TextRange};
+use ruff_text_size::{TextLen, TextRange, TextSize};
 
 use crate::checkers::ast::LintContext;
 use crate::line_width::{IndentWidth, LineLength, LineWidthBuilder};
@@ -148,6 +148,8 @@ enum LineTooLongType {
     StringMultiLine,
     StringSingleLineDocstring,
     StringMultiLineDocstring,
+    StringParamAssignment,
+    StringParamAssignmentTrailingComma,
     Ignored,
     Unsupported,
 }
@@ -166,6 +168,7 @@ impl LineTooLongType {
             self,
             LineTooLongType::StringSingleLineWithTrailingComma
                 | LineTooLongType::StringSingleLineWithTrailingCommaParenthesis
+                | LineTooLongType::StringParamAssignmentTrailingComma
         )
     }
 
@@ -192,6 +195,9 @@ fn classify_line(line: &Line, flagged_by_w505: bool, prev_line: Option<&Line>) -
     let newline_comment_pattern: Regex = Regex::new(r"^[ ]*#").unwrap();
     // matches any comment, including inline comments
     let comment_pattern: Regex = Regex::new(r".*#").unwrap();
+    // matches parameter assignments
+    let parameter_assignment_pattern =
+        Regex::new("^[ ]*[a-zA-Z0-9_]+=[bfr]{0,1}\".*\"[,]{0,1}$").unwrap();
     // attempt at matching multi-line strings
     let multiline_string_pattern: Regex =
         Regex::new("^[ ]*[\"]{0,3}[a-zA-Z0-9-:.,()?!%' ]*[\"]{0,3}$").unwrap();
@@ -242,6 +248,12 @@ fn classify_line(line: &Line, flagged_by_w505: bool, prev_line: Option<&Line>) -
     } else if multiline_string_pattern.is_match(line) {
         // if W505 is disabled, docstrings will be treated the same as multi-line strings
         LineTooLongType::StringMultiLine
+    } else if parameter_assignment_pattern.is_match(line) {
+        if ends_with_comma_pattern.is_match(line) {
+            LineTooLongType::StringParamAssignmentTrailingComma
+        } else {
+            LineTooLongType::StringParamAssignment
+        }
     } else {
         LineTooLongType::Unsupported
     }
@@ -264,6 +276,7 @@ struct BreakLineResult {
     base_indent_range: TextRange,
     base_indent: String,
     new_indent: String,
+    indent_to_string_range: TextRange,
 }
 
 fn break_line(
@@ -281,6 +294,8 @@ fn break_line(
     let mut last_text_break = line.start();
     let mut indent_end = line.start();
     let mut indent_end_found = false;
+    let mut string_start = line.start();
+    let mut string_start_found = false;
     let mut last_fstring_safe_offset = last_text_break;
     let mut start_width = LineWidthBuilder::new(config.tab_size);
 
@@ -314,6 +329,9 @@ fn break_line(
             if c != ' ' {
                 indent_end_found = true;
             }
+            if c == '"' {
+                string_start_found = true;
+            }
             if line_has_fstring {
                 if c == '{' {
                     fstring_opened = true;
@@ -327,6 +345,11 @@ fn break_line(
 
             if !indent_end_found {
                 indent_end = start_offset;
+            }
+            if !string_start_found {
+                string_start = start_offset;
+            }
+            if !string_start_found || !indent_end_found {
                 continue;
             }
 
@@ -363,6 +386,7 @@ fn break_line(
     }
 
     let base_indent_range = TextRange::new(line.start(), indent_end);
+    let indent_to_string_range = TextRange::new(indent_end, string_start);
     let indent_pattern: Regex = Regex::new(r"^[ ]*").unwrap();
     let base_indent = indent_pattern.find(line).unwrap().as_str().to_string();
     let unchanged_text = line.as_str()[unchanged_range - line.start()].to_string();
@@ -396,6 +420,7 @@ fn break_line(
         overflow: overflow_text,
         overflow_has_fvar,
         new_indent,
+        indent_to_string_range,
     })
 }
 
@@ -557,6 +582,33 @@ fn get_line_length_edits(
             );
             Some((newline_edit, [moved_comment_edit].to_vec()))
         }
+        LineTooLongType::StringParamAssignment
+        | LineTooLongType::StringParamAssignmentTrailingComma => {
+            // just break string onto separate line, and then let single line logic handle the rest
+            let mut string_start = break_result.indent_to_string_range.end();
+            let mut string_end = break_result.overflow_range.end();
+            if break_result.line_has_fstring {
+                string_start -= TextSize::from(1);
+            }
+            if line_type.has_trailing_comma() {
+                string_end -= TextSize::from(1);
+            }
+            let delete_trailing_comma_edit =
+                Edit::deletion(string_end, break_result.overflow_range.end());
+            let line_break_start_edit = Edit::insertion(
+                format!(
+                    "(\n{}{}",
+                    break_result.base_indent, break_result.new_indent
+                ),
+                string_start,
+            );
+            let line_break_end_edit =
+                Edit::insertion(format!("\n{}),", break_result.base_indent), string_end);
+            Some((
+                delete_trailing_comma_edit,
+                [line_break_start_edit, line_break_end_edit].to_vec(),
+            ))
+        }
         _ => None,
     }
 }
@@ -710,6 +762,10 @@ mod tests {
             unchanged_has_fvar,
             overflow_has_fvar,
             new_indent: String::from("    "),
+            indent_to_string_range: TextRange::new(
+                TextSize::from(4),
+                TextSize::try_from(overflow_text.len()).unwrap(),
+            ),
         }
     }
 
